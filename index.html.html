@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CSMA/CD Channel Demo</title>
+<style>
+  :root{
+    --bg:#0a1010; --bg2:#0d1616; --panel:#111c1b; --panelTop:#132320; --line:#26403c; --ink:#e7f1ec;
+    --dim:#7fa89e; --amber:#e8a33d; --red:#e2564f; --green:#4fbf87;
+    --box:#0b1615; --hubbg:#191007; --ledoff:#22302c; --btnbg:#101b1a; --gridDot:rgba(255,255,255,.04);
+  }
+  html[data-theme="light"]{
+    --bg:#eef3f1; --bg2:#e5ede9; --panel:#ffffff; --panelTop:#f4faf7; --line:#cddbd5; --ink:#0e1e1a;
+    --dim:#4c6b62; --amber:#b5691c; --red:#c23f38; --green:#178a5c;
+    --box:#ffffff; --hubbg:#fff2df; --ledoff:#d8e4de; --btnbg:#ffffff; --gridDot:rgba(10,30,25,.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; color:var(--ink);
+    background:radial-gradient(1200px 600px at 50% -10%, var(--bg2), var(--bg) 65%);
+    font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+    transition:background .25s ease, color .25s ease;
+  }
+  .wrap{max-width:940px;margin:0 auto;padding:32px 20px 44px;}
+  .titlebar{display:flex;align-items:center;gap:10px;margin-bottom:2px;}
+  .pulse{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);flex:none;animation:pulseDot 2.2s ease-in-out infinite;}
+  .pulse.small{width:6px;height:6px;}
+  @keyframes pulseDot{0%,100%{opacity:1;}50%{opacity:.35;}}
+  h1{font-size:1.4rem;font-weight:700;margin:0;letter-spacing:.2px;}
+  .sub{color:var(--dim);font-size:.9rem;margin:6px 0 24px;line-height:1.55;max-width:66ch;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;}
+  .titlegroup{flex:1 1 320px;}
+  .statuscluster{display:flex;align-items:center;gap:10px;flex:none;}
+  .livepill{
+    display:flex;align-items:center;gap:7px; background:var(--btnbg); border:1px solid var(--line);
+    border-radius:999px; padding:6px 13px; font-size:.68rem; color:var(--dim);
+    font-family:ui-monospace,Consolas,monospace; letter-spacing:.3px;
+  }
+  .livepill b{color:var(--ink);font-weight:600;}
+  .livepill .sep{opacity:.5;}
+  .themeBtn{
+    width:34px;height:34px;border-radius:50%; border:1px solid var(--line); background:var(--btnbg);
+    color:var(--ink); display:flex;align-items:center;justify-content:center; cursor:pointer; font-size:.95rem;
+    transition:border-color .15s, transform .1s;
+  }
+  .themeBtn:hover{border-color:var(--amber);transform:translateY(-1px);}
+  .stage{
+    position:relative; width:100%; min-height:380px;
+    background:linear-gradient(180deg,#132320,var(--panel));
+    border:1px solid var(--line); border-radius:12px;
+    box-shadow:0 20px 40px -24px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.03);
+    padding:30px 26px 34px; display:flex; flex-direction:column; gap:38px;
+  }
+  .stage::before{
+    content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;z-index:0;
+    background-image:radial-gradient(circle at 1px 1px, var(--gridDot) 1px, transparent 1px);
+    background-size:26px 26px; border-radius:12px;
+  }
+  .row{position:relative;z-index:2;display:flex;}
+  .row-top{justify-content:space-between;}
+  .row-mid,.row-bottom{justify-content:center;}
+  .lines{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;}
+  .lines line{stroke:var(--line);stroke-width:2;stroke-dasharray:4 4;}
+  .lines circle{fill:var(--line);}
+  .node{
+    width:158px; text-align:center; font-size:.72rem; color:var(--dim);
+  }
+  .node .box{
+    background:var(--box); border:1px solid var(--line); border-radius:9px;
+    padding:10px 8px 12px; position:relative;
+    box-shadow:0 10px 22px -14px rgba(0,0,0,.7);
+  }
+  .node .box::before{
+    content:"";position:absolute;left:12px;right:12px;top:0;height:2px;
+    background:linear-gradient(90deg,transparent,var(--dim),transparent);opacity:.4;
+  }
+  .node .name{color:var(--ink);font-weight:700;font-size:.76rem;letter-spacing:.3px;}
+  .node .role{font-size:.6rem;color:var(--dim);margin-top:1px;}
+  .leds{display:flex;justify-content:center;gap:16px;margin-top:9px;}
+  .ledwrap{display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .ledwrap small{font-size:.55rem;color:#4c6a63;}
+  .led{width:9px;height:9px;border-radius:50%;background:var(--ledoff);transition:background .15s,box-shadow .15s;}
+  .led.red.on{background:var(--red);box-shadow:0 0 9px var(--red);}
+  .led.green.on{background:var(--green);box-shadow:0 0 9px var(--green);}
+  .status{margin-top:6px;font-size:.66rem;color:var(--amber);min-height:14px;}
+  .hub{
+    position:relative; z-index:2;
+    width:92px; height:38px; border:1px solid var(--amber); border-radius:7px;
+    display:flex;align-items:center;justify-content:center; gap:5px; font-size:.7rem;
+    color:var(--amber); background:var(--hubbg); letter-spacing:.4px; font-weight:600;
+    box-shadow:0 10px 22px -14px rgba(0,0,0,.7);
+  }
+  .hub .ports{display:flex;gap:3px;}
+  .hub .ports i{width:4px;height:4px;border-radius:1px;background:var(--amber);opacity:.6;display:block;}
+  .hub.burst{ animation:burst .5s ease-out; }
+  @keyframes burst{
+    0%{box-shadow:0 0 0 0 rgba(226,86,79,.7);}
+    100%{box-shadow:0 0 34px 14px rgba(226,86,79,0);}
+  }
+  .oled{
+    margin-top:9px; border:1px solid #1c3327; border-radius:5px; overflow:hidden;
+    background:#03110a;
+  }
+  .oled .bezel{
+    background:#0c1b16;font-size:.55rem;color:#4c6a63;padding:3px 7px;
+    border-bottom:1px solid #1c3327;text-align:left;letter-spacing:.4px;
+  }
+  .oled .screen{
+    padding:7px 8px; font-family:ui-monospace,Consolas,monospace; font-size:.62rem;
+    color:var(--green); min-height:34px; line-height:1.4; text-align:left;
+  }
+  .packet{
+    position:absolute; width:10px;height:10px;border-radius:50%; z-index:3;
+    background:var(--amber); box-shadow:0 0 6px var(--amber);
+    opacity:0; transition:left 1s linear, top 1s linear, opacity .2s;
+  }
+  .volt{
+    margin-top:18px;border:1px solid var(--line);border-radius:10px;
+    background:linear-gradient(180deg,var(--panelTop),var(--panel));padding:12px 14px;
+    box-shadow:0 10px 22px -16px rgba(0,0,0,.6);
+  }
+  .volt-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .volt-row span:first-child{font-size:.66rem;color:var(--dim);letter-spacing:.3px;}
+  .volt-row span:last-child{font-size:.66rem;color:var(--dim);font-family:ui-monospace,Consolas,monospace;}
+  canvas{display:block;width:100%;height:60px;}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;}
+  button{
+    flex:1 1 150px; background:var(--btnbg); color:var(--ink); border:1px solid var(--line);
+    border-left:3px solid var(--dim); border-radius:8px; padding:11px 12px;
+    font-size:.8rem; cursor:pointer; font-weight:600; text-align:left;
+    transition:border-color .15s, transform .1s;
+  }
+  button:hover:not(:disabled){transform:translateY(-1px);}
+  button:disabled{opacity:.4;cursor:default;}
+  button[data-case="1"]{border-left-color:var(--green);}
+  button[data-case="2"]{border-left-color:var(--red);}
+  button[data-case="3"]{border-left-color:var(--amber);}
+  #resetBtn{flex:0 0 90px;background:transparent;border-left-color:var(--line);color:var(--dim);font-weight:500;text-align:center;}
+  .case1group{display:flex;gap:8px;flex:1 1 260px;}
+  .case1group button[data-case="1"]{flex:1 1 auto;}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:0 0 auto;}
+  .segBtn{
+    background:var(--btnbg);color:var(--dim);border:none;padding:0 13px;font-size:.72rem;
+    font-weight:600;cursor:pointer;transition:background .15s,color .15s;
+  }
+  .segBtn:not(:first-child){border-left:1px solid var(--line);}
+  .segBtn.active{background:var(--amber);color:#1c1206;}
+  .segBtn:disabled{opacity:.4;cursor:default;}
+  .log{
+    margin-top:14px; background:linear-gradient(180deg,var(--panelTop),var(--panel));
+    border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; font-family:ui-monospace,Consolas,monospace; font-size:.68rem;
+    color:var(--dim); max-height:150px; overflow-y:auto;
+    box-shadow:0 10px 22px -16px rgba(0,0,0,.6);
+  }
+  .log div{padding:2px 0;border-bottom:1px dashed rgba(255,255,255,.03);}
+  .log div:last-child{border-bottom:none;}
+  .log .ok{color:var(--green);}
+  .log .bad{color:var(--red);}
+  @media (max-width:520px){
+    .node{width:118px;font-size:.6rem;}
+    .node .name{font-size:.68rem;}
+    .ledwrap small{font-size:.5rem;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="titlegroup">
+      <div class="titlebar"><span class="pulse"></span><h1>CSMA/CD Channel-Access Demo</h1></div>
+      <p class="sub">Node A and Node B share one Ethernet hub to reach Node C. There's no acknowledgement at this layer — Node C's display only updates when a frame actually gets through clean.</p>
+    </div>
+    <div class="statuscluster">
+      <div class="livepill"><span class="pulse small"></span>LIVE<span class="sep">·</span><b id="sessionTime">00:00</b></div>
+      <button class="themeBtn" id="themeBtn" title="Switch to light theme" aria-label="Switch to light theme">☀️</button>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <svg class="lines" id="linesSvg">
+      <line id="lineA"></line>
+      <line id="lineB"></line>
+      <line id="lineC"></line>
+      <circle id="dotA" r="3"></circle>
+      <circle id="dotB" r="3"></circle>
+      <circle id="dotC" r="3"></circle>
+    </svg>
+
+    <div class="row row-top">
+      <div class="node" id="nodeA">
+        <div class="box">
+          <div class="name">NODE A</div>
+          <div class="role">Transmitter</div>
+          <div class="leds">
+            <div class="ledwrap"><div class="led red" id="ledA-red"></div><small>collision</small></div>
+            <div class="ledwrap"><div class="led green" id="ledA-green"></div><small>success</small></div>
+          </div>
+          <div class="status" id="statusA"></div>
+        </div>
+      </div>
+      <div class="node" id="nodeB">
+        <div class="box">
+          <div class="name">NODE B</div>
+          <div class="role">Transmitter</div>
+          <div class="leds">
+            <div class="ledwrap"><div class="led red" id="ledB-red"></div><small>collision</small></div>
+            <div class="ledwrap"><div class="led green" id="ledB-green"></div><small>success</small></div>
+          </div>
+          <div class="status" id="statusB"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row row-mid">
+      <div class="hub" id="hub">HUB<span class="ports"><i></i><i></i><i></i></span></div>
+    </div>
+
+    <div class="row row-bottom">
+      <div class="node" id="nodeC">
+        <div class="box">
+          <div class="name">NODE C</div>
+          <div class="role">Receiver</div>
+          <div class="oled">
+            <div class="bezel">display</div>
+            <div class="screen" id="oled">standing by…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="packet" id="pktA"></div>
+    <div class="packet" id="pktB"></div>
+  </div>
+
+  <div class="volt">
+    <div class="volt-row"><span>SHARED CHANNEL VOLTAGE</span><span id="voltState">idle</span></div>
+    <canvas id="voltCanvas"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="case1group">
+      <div class="seg" id="nodeSeg">
+        <button class="segBtn active" data-node="A" type="button">Node A</button>
+        <button class="segBtn" data-node="B" type="button">Node B</button>
+      </div>
+      <button data-case="1">Case 1 · Clean send</button>
+    </div>
+    <button data-case="2">Case 2 · Collision</button>
+    <button data-case="3">Case 3 · Backoff + retransmit</button>
+    <button id="resetBtn">Reset</button>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const stage = document.getElementById('stage');
+const nodeA = $('nodeA'), nodeB = $('nodeB'), nodeC = $('nodeC');
+const pktA = $('pktA'), pktB = $('pktB'), hub = $('hub'), oled = $('oled'), logEl = $('log');
+const linesSvg = $('linesSvg'), lineA = $('lineA'), lineB = $('lineB'), lineC = $('lineC');
+const dotA = $('dotA'), dotB = $('dotB'), dotC = $('dotC');
+const buttons = document.querySelectorAll('[data-case]');
+let busy = false;
+let selectedNode = 'A';
+const segBtns = document.querySelectorAll('.segBtn');
+segBtns.forEach(b=>b.addEventListener('click',()=>{
+  if(busy) return;
+  segBtns.forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  selectedNode = b.dataset.node;
+}));
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+// ---- live geometry: read real box positions instead of guessing pixels ----
+function anchor(el, side){
+  const s = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
+  return { x: r.left + r.width/2 - s.left, y: (side==='top' ? r.top : r.bottom) - s.top };
+}
+function hubCenter(){
+  const s = stage.getBoundingClientRect(), r = hub.getBoundingClientRect();
+  return { x: r.left + r.width/2 - s.left, y: r.top + r.height/2 - s.top };
+}
+function setLineEl(line,p1,p2){ line.setAttribute('x1',p1.x); line.setAttribute('y1',p1.y); line.setAttribute('x2',p2.x); line.setAttribute('y2',p2.y); }
+function setDot(dot,p){ dot.setAttribute('cx',p.x); dot.setAttribute('cy',p.y); }
+
+function drawLines(){
+  const s = stage.getBoundingClientRect();
+  linesSvg.setAttribute('viewBox', `0 0 ${s.width} ${s.height}`);
+  const a = anchor(nodeA,'bottom'), b = anchor(nodeB,'bottom');
+  const hTop = anchor(hub,'top'), hBot = anchor(hub,'bottom');
+  const c = anchor(nodeC,'top');
+  setLineEl(lineA,a,hTop); setLineEl(lineB,b,hTop); setLineEl(lineC,hBot,c);
+  setDot(dotA,a); setDot(dotB,b); setDot(dotC,c);
+}
+new ResizeObserver(drawLines).observe(stage);
+window.addEventListener('load', drawLines);
+drawLines();
+
+function placeAt(el,p){ el.style.left = (p.x-5)+'px'; el.style.top = (p.y-5)+'px'; }
+async function moveDot(el,p,ms){
+  el.style.transition = `left ${ms}ms linear, top ${ms}ms linear, opacity .2s`;
+  placeAt(el,p);
+  await sleep(ms);
+}
+
+// ---- theme toggle ----
+const themeBtn = $('themeBtn');
+themeBtn.addEventListener('click', ()=>{
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if(isLight){
+    document.documentElement.removeAttribute('data-theme');
+    themeBtn.textContent = '☀️';
+    themeBtn.title = 'Switch to light theme';
+  } else {
+    document.documentElement.setAttribute('data-theme','light');
+    themeBtn.textContent = '🌙';
+    themeBtn.title = 'Switch to dark theme';
+  }
+});
+
+// ---- live session timer ----
+const sessionStart = Date.now();
+setInterval(()=>{
+  const secs = Math.floor((Date.now()-sessionStart)/1000);
+  const mm = String(Math.floor(secs/60)).padStart(2,'0');
+  const ss = String(secs%60).padStart(2,'0');
+  $('sessionTime').textContent = `${mm}:${ss}`;
+}, 1000);
+
+function log(msg, cls){
+  const d = document.createElement('div');
+  if(cls) d.className = cls;
+  d.textContent = msg;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function setOled(html){ oled.innerHTML = html; }
+function setLed(id,on){ $(id).classList.toggle('on',!!on); }
+function setStatus(which,text){ $('status'+which).textContent = text || ''; }
+
+function resetVisual(){
+  [pktA,pktB].forEach(p=>{p.style.opacity=0;});
+  ['ledA-red','ledA-green','ledB-red','ledB-green'].forEach(id=>setLed(id,false));
+  setStatus('A',''); setStatus('B','');
+  hub.classList.remove('burst');
+  setOled('standing by…');
+  logEl.innerHTML='';
+}
+
+// ---- voltage strip ----
+const canvas = $('voltCanvas');
+const ctx = canvas.getContext('2d');
+let spikeAmount = 0;
+function resizeCanvas(){ canvas.width = canvas.clientWidth*2; canvas.height = canvas.clientHeight*2; }
+resizeCanvas(); window.addEventListener('resize',resizeCanvas);
+let t=0;
+function drawVolt(){
+  const w=canvas.width, h=canvas.height, mid=h/2;
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle = spikeAmount>0.05 ? '#e2564f' : '#4fbf87';
+  ctx.lineWidth=2.5;
+  ctx.beginPath();
+  for(let x=0;x<w;x+=4){
+    const noise = Math.sin((x+t)*0.05)*3;
+    const spike = spikeAmount>0.05 ? Math.sin((x+t)*0.9)*spikeAmount*(h*0.32) : 0;
+    const y = mid - noise - spike;
+    x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  spikeAmount *= 0.94;
+  if(spikeAmount<0.02) spikeAmount=0;
+  $('voltState').textContent = spikeAmount>0.05 ? 'collision — voltage spike' : 'idle';
+  t+=3;
+  requestAnimationFrame(drawVolt);
+}
+requestAnimationFrame(drawVolt);
+function spike(){ spikeAmount = 1; }
+
+// ---- packet visibility ----
+function showPacket(el){ el.style.opacity=1; }
+function hidePacket(el){ el.style.opacity=0; }
+
+// ---- cases ----
+async function caseClean(){
+  const k = selectedNode;
+  const nodeEl = k==='A' ? nodeA : nodeB;
+  const pkt = k==='A' ? pktA : pktB;
+  resetVisual(); busy=true; setButtons(false);
+  log(`NODE ${k}: carrier sense → channel idle`);
+  const P = anchor(nodeEl,'bottom');
+  pkt.style.transition='none'; placeAt(pkt,P); await sleep(30); showPacket(pkt);
+  setStatus(k,'sensing → idle');
+  await sleep(500);
+  log(`NODE ${k} → HUB: transmitting frame`);
+  await moveDot(pkt, hubCenter(), 900);
+  log('HUB: no other traffic — relaying to NODE C');
+  await moveDot(pkt, anchor(nodeC,'top'), 700);
+  hidePacket(pkt);
+  setLed(`led${k}-green`,true);
+  setOled(`&gt; RX from NODE_${k}<br>&gt; MESSAGE RECEIVED<br>&gt; SUCCESSFULLY`);
+  log(`NODE C: message received successfully (from NODE ${k})`,'ok');
+  busy=false; setButtons(true);
+}
+
+async function caseCollision(){
+  resetVisual(); busy=true; setButtons(false);
+  log('NODE A: carrier sense → idle. NODE B: carrier sense → idle');
+  const A = anchor(nodeA,'bottom'), B = anchor(nodeB,'bottom');
+  pktA.style.transition='none'; pktB.style.transition='none';
+  placeAt(pktA,A); placeAt(pktB,B);
+  await sleep(30); showPacket(pktA); showPacket(pktB);
+  setStatus('A','idle → transmit'); setStatus('B','idle → transmit');
+  await sleep(500);
+  log('NODE A → HUB and NODE B → HUB: same instant');
+  const hc = hubCenter();
+  await Promise.all([ moveDot(pktA,hc,900), moveDot(pktB,hc,900) ]);
+  hidePacket(pktA); hidePacket(pktB);
+  hub.classList.add('burst');
+  spike();
+  setLed('ledA-red',true); setLed('ledB-red',true);
+  setStatus('A','collision → jam'); setStatus('B','collision → jam');
+  log('COLLISION on shared channel — jam signal sent','bad');
+  log('No ACK at this layer → NODE C shows no output', 'bad');
+  setOled('&gt; …&nbsp;&nbsp;(no frame received)');
+  await sleep(600);
+  hub.classList.remove('burst');
+  busy=false; setButtons(true);
+}
+
+async function caseBackoff(){
+  resetVisual(); busy=true; setButtons(false);
+
+  log('Same as Case 2: both sense idle, transmit, collide');
+  const A0 = anchor(nodeA,'bottom'), B0 = anchor(nodeB,'bottom');
+  pktA.style.transition='none'; pktB.style.transition='none';
+  placeAt(pktA,A0); placeAt(pktB,B0);
+  await sleep(30); showPacket(pktA); showPacket(pktB);
+  await sleep(400);
+  const hc0 = hubCenter();
+  await Promise.all([ moveDot(pktA,hc0,800), moveDot(pktB,hc0,800) ]);
+  hidePacket(pktA); hidePacket(pktB);
+  hub.classList.add('burst'); spike();
+  setLed('ledA-red',true); setLed('ledB-red',true);
+  log('COLLISION detected — jam sent, both stations back off','bad');
+  await sleep(500);
+  hub.classList.remove('burst');
+  setLed('ledA-red',false); setLed('ledB-red',false);
+
+  const backA = 1100, backB = 1900;
+  setStatus('A','backoff…'); setStatus('B','backoff…');
+  log(`NODE A backoff window chosen: ${(backA/1000).toFixed(1)}s`);
+  log(`NODE B backoff window chosen: ${(backB/1000).toFixed(1)}s`);
+  await sleep(backA);
+
+  setStatus('A','retransmitting');
+  log('NODE A: channel idle again → retransmit');
+  const A1 = anchor(nodeA,'bottom');
+  pktA.style.transition='none'; placeAt(pktA,A1); await sleep(20); showPacket(pktA);
+  await moveDot(pktA, hubCenter(), 800);
+  await moveDot(pktA, anchor(nodeC,'top'), 650);
+  hidePacket(pktA);
+  setLed('ledA-green',true);
+  setOled('&gt; RX from NODE_A<br>&gt; MESSAGE RECEIVED<br>&gt; SUCCESSFULLY');
+  log('NODE C: message received successfully (from NODE A)','ok');
+  setStatus('A','done');
+
+  await sleep(Math.max(backB - backA, 300));
+
+  setStatus('B','retransmitting');
+  log('NODE B: channel idle again → retransmit');
+  const B1 = anchor(nodeB,'bottom');
+  pktB.style.transition='none'; placeAt(pktB,B1); await sleep(20); showPacket(pktB);
+  await moveDot(pktB, hubCenter(), 800);
+  await moveDot(pktB, anchor(nodeC,'top'), 650);
+  hidePacket(pktB);
+  setLed('ledB-green',true);
+  setOled('&gt; RX from NODE_B<br>&gt; MESSAGE RECEIVED<br>&gt; SUCCESSFULLY');
+  log('NODE C: message received successfully (from NODE B)','ok');
+  setStatus('B','done');
+
+  busy=false; setButtons(true);
+}
+
+function setButtons(enabled){ buttons.forEach(b=>b.disabled=!enabled); segBtns.forEach(b=>b.disabled=!enabled); }
+
+buttons.forEach(b=>b.addEventListener('click',()=>{
+  if(busy) return;
+  const c = b.dataset.case;
+  if(c==='1') caseClean();
+  if(c==='2') caseCollision();
+  if(c==='3') caseBackoff();
+}));
+$('resetBtn').addEventListener('click',()=>{ if(!busy) resetVisual(); });
+
+resetVisual();
+</script>
+</body>
+</html>
